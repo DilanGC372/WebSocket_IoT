@@ -63,7 +63,7 @@ SHOW TABLES;
 
 CALL sp_crear_vehiculo(
 
-  'Excavadora IoT',
+  'Grúa IoT',
 
   'Modelo X',
 
@@ -85,9 +85,9 @@ CALL sp_crear_comando(1,'SUBIR_BRAZO',5,'Elevar el brazo');
 
 CALL sp_crear_comando(1,'BAJAR_BRAZO',6,'Descender el brazo');
 
-CALL sp_crear_comando(1,'ABRIR_PALA',7,'Abrir la pala');
+CALL sp_crear_comando(1,'BAJAR_GANCHO',7,'Bajar el gancho');
 
-CALL sp_crear_comando(1,'CERRAR_PALA',8,'Cerrar la pala');
+CALL sp_crear_comando(1,'SUBIR_GANCHO',8,'Subir el gancho');
 
 CALL sp_crear_comando(1,'DETENER',9,'Detener cualquier movimiento');
 

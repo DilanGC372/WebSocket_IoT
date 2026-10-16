@@ -1,28 +1,18 @@
-import json
+"""Compatibilidad de /status: el estado procede de MySQL."""
+import os
 
+from dotenv import load_dotenv
 from pathlib import Path
 
 
 class StatusService:
-
-    def __init__(self):
-
-        self.archivo = Path(__file__).resolve().parent.parent / "data" / "status.json"
-
+    def __init__(self, repository):
+        self.repo = repository
+        load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
+        self.id_vehiculo = int(os.getenv("VEHICULO_ID", "1"))
+        if self.id_vehiculo <= 0:
+            raise ValueError("VEHICULO_ID debe ser positivo")
 
     def obtener_estado(self):
-
-        with open(self.archivo, "r", encoding="utf-8") as archivo:
-
-            return json.load(archivo)
-
-
-    def guardar_estado(self, status: int):
-
-        nuevo_estado = {"status": status}
-
-        with open(self.archivo, "w", encoding="utf-8") as archivo:
-
-            json.dump(nuevo_estado, archivo, indent=4)
-
-        return nuevo_estado
+        estado = self.repo.estado(self.id_vehiculo)
+        return {"status": estado["codigo"]}

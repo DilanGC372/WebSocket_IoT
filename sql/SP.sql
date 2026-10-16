@@ -340,3 +340,6 @@ SHOW TABLES;
 -- La base queda sin vehiculos, comandos ni demos de ejemplo.
 -- Cada sp_crear_* devuelve el ID que debe guardar la aplicacion.
 -- El historial registra solicitudes; no confirma ejecucion fisica en el ESP8266.
+
+select * from vehiculos;
+select * from comandos;
