@@ -158,8 +158,19 @@ class MySQLIntegration(unittest.TestCase):
         for codigo in [0, 13, True, "7", 7.0]:
             self.assertEqual(c.post(f"/vehiculos/{self.v}/movimientos", json={"codigo": codigo}).status_code, 422)
         self.assertEqual(c.post(f"/vehiculos/{self.v}/movimientos", json={"codigo": 12}).status_code, 422)
-        self.assertEqual(c.post(f"/vehiculos/{self.v}/movimientos", json={"codigo": 7}).status_code, 409)
         self.assertEqual(c.get(f"/vehiculos/{self.v}/historial").json(), [])
+        respuesta = c.post(f"/vehiculos/{self.v}/movimientos", json={"codigo": 7})
+        self.assertEqual(respuesta.status_code, 200, respuesta.text)
+        self.assertEqual(respuesta.json()["modo"], "simulacion")
+        self.assertFalse(respuesta.json()["enviado_al_dispositivo"])
+        estado = c.get(f"/vehiculos/{self.v}/estado").json()
+        self.assertEqual(estado["codigo"], 7)
+        self.assertFalse(estado["conectado"])
+        historial = c.get(f"/vehiculos/{self.v}/historial").json()
+        self.assertEqual([fila["codigo"] for fila in historial], [7])
+        self.assertEqual(c.post("/status", json={"status": 8}).status_code, 200)
+        self.assertEqual(c.get("/status").json(), {"status": 8})
+        self.assertEqual([fila["codigo"] for fila in c.get(f"/vehiculos/{self.v}/historial").json()], [8, 7])
         demo = c.post(f"/vehiculos/{self.v}/demos", json={"nombre": "Demo"}).json()["id_demo"]
         for datos in [
             {"id_comando": self.comandos[12], "orden": 1, "duracion_ms": 1},
@@ -177,7 +188,8 @@ class MySQLIntegration(unittest.TestCase):
                 with self.assertRaises(WebSocketDisconnect):
                     with c.websocket_connect(f"/ws/vehiculos/{self.v}"):
                         pass
-                self.assertEqual(c.post(f"/vehiculos/{other}/movimientos", json={"codigo": 7}).status_code, 409)
+                # Este otro vehiculo existe, pero no tiene comandos: se valida aun sin dispositivo.
+                self.assertEqual(c.post(f"/vehiculos/{other}/movimientos", json={"codigo": 7}).status_code, 422)
                 response = c.post(f"/vehiculos/{self.v}/movimientos", json={"codigo": 7})
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertFalse(response.json()["ejecucion_confirmada"])
@@ -211,7 +223,25 @@ class MySQLIntegration(unittest.TestCase):
                 self.assertEqual(final["evento"], "demo_finalizada")
                 self.assertFalse(final["ejecucion_confirmada"])
                 historial = c.get(f"/vehiculos/{self.v}/historial").json()
-                self.assertEqual([r["codigo"] for r in historial], [9, 11, 10, 12, 9])
+                self.assertEqual([r["codigo"] for r in historial], [9])
+
+    def test_demo_http_sin_dispositivo_no_genera_historial(self):
+        demo = self.crear_demo()
+        c = self.client
+        c.post(f"/vehiculos/{self.v}/movimientos", json={"codigo": 1})
+        antes = c.get(f"/vehiculos/{self.v}/historial").json()
+        respuesta = c.post(f"/vehiculos/{self.v}/movimientos", json={"codigo": 12, "id_demo": demo})
+        self.assertEqual(respuesta.status_code, 200, respuesta.text)
+        self.assertEqual(respuesta.json()["modo"], "simulacion")
+        async def esperar():
+            ejecucion = self.app.state.control.demos.get(self.v)
+            if ejecucion:
+                await ejecucion.tarea
+        c.portal.call(esperar)
+        self.assertEqual(c.get(f"/vehiculos/{self.v}/historial").json(), antes)
+        estado = c.get(f"/vehiculos/{self.v}/estado").json()
+        self.assertEqual(estado["codigo"], 9)
+        self.assertFalse(estado["conectado"])
 
     def test_minimo_dos_movimientos_por_http_y_websocket(self):
         demo = self.crear_demo(cantidad=0)

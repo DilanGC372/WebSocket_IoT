@@ -111,6 +111,12 @@ class Repository:
             cursor.execute("UPDATE estado_vehiculo SET conectado = %s WHERE id_vehiculo = %s", (conectado, vehiculo))
         self._operacion(actualizar)
 
+    def actualizar(self, vehiculo, codigo, conectado):
+        """Guarda un paso de demo sin insertar historial."""
+        comando = self.comando(vehiculo, codigo)
+        self.call("sp_actualizar_estado", (vehiculo, comando["id_comando"], conectado))
+        return comando
+
     def secuencia(self, vehiculo, demo):
         self.vehiculo(vehiculo, activo=True)
         fila = self.get("demos", demo)

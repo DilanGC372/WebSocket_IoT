@@ -60,6 +60,13 @@ puede reemplazar ese mecanismo.
 
 ## Interfaz de demos
 
+Las demos tambien se pueden iniciar desde Swagger sin conectar dispositivo:
+`POST /vehiculos/1/movimientos` con `{"codigo":12,"id_demo":1}`. En ese caso
+la respuesta indica `modo: "simulacion"` y la secuencia actualiza MySQL en
+segundo plano, respetando duraciones y pausas. Ninguna demo genera historial;
+solo actualiza el estado. El modo con dispositivo conserva el envio real.
+Una orden manual de DETENER para cancelar si se guarda como movimiento individual.
+
 Conectar a `ws://127.0.0.1:8000/ws/vehiculos/1/demos`.
 Al conectar recibe `estado_demo`, con `id_demo` (o null) y `conectado`.
 
@@ -85,6 +92,7 @@ Eventos posibles:
 | estado_demo | Estado al conectar la interfaz |
 | demo_iniciada | Secuencia validada y programada |
 | paso_enviado | Paso transmitido; incluye orden, código e id_orden |
+| paso_simulado | Paso aplicado al estado sin dispositivo; id_orden es null |
 | confirmacion | Respuesta recibida del ESP8266 |
 | demo_finalizada | Terminó el envío temporizado de la secuencia |
 | demo_cancelada | Se canceló la secuencia |
@@ -97,6 +105,12 @@ Eventos posibles:
 El evento terminal incluye `detener_enviado` y
 `ejecucion_confirmada: false`. Terminar una secuencia enviada no demuestra
 que el equipo haya completado físicamente los movimientos.
+
+`demo_iniciada` y el evento terminal incluyen `modo` (`simulacion` o
+`dispositivo`). En simulacion, `detener_enviado` es false y el motivo normal
+de finalizacion es `secuencia_simulada`. `/ws` transmite el estado inicial y
+los cambios de la demo del vehiculo configurado; los GET de estado permiten
+consultarlo tambien sin WebSocket.
 
 Una interfaz que inició una demo por WebSocket es su propietaria: cerrarla
 cancela esa demo. Otras interfaces observadoras no la cancelan al salir.

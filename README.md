@@ -85,7 +85,7 @@ Son 22 operaciones sobre SP, más dos rutas de compatibilidad.
 | GET /demos/{id}/movimientos | sp_obtener_movimientos_demo |
 | PUT /movimientos-demo/{id} | sp_actualizar_movimiento_demo |
 | DELETE /movimientos-demo/{id} | sp_eliminar_movimiento_demo |
-| POST /vehiculos/{id}/movimientos | sp_registrar_comando |
+| POST /vehiculos/{id}/movimientos | sp_registrar_comando (individual); sp_actualizar_estado (demo) |
 
 Crear un comando agrega una definición al catálogo. Para enviar una orden,
 usa `POST /vehiculos/{id}/movimientos` con `codigo`, no con `id_comando`:
@@ -94,8 +94,16 @@ usa `POST /vehiculos/{id}/movimientos` con `codigo`, no con `id_comando`:
 {"codigo": 7, "origen": "MANUAL"}
 ```
 
-La grúa debe estar conectada en su WebSocket. El servidor resuelve el
-`id_comando`, guarda estado e historial juntos y envía la orden. Un fallo de
+Para los codigos 1 al 11 no es obligatorio conectar un dispositivo. El servidor
+valida vehiculo y comando y guarda estado e historial juntos. Sin dispositivo
+responde 200 con `registrado: true`, `modo: "simulacion"`,
+`enviado_al_dispositivo: false` y `ejecucion_confirmada: false`; conserva
+`conectado: false` en MySQL y notifica el estado a los observadores de `/ws`.
+Esto confirma el registro, no una ejecucion fisica. Las demos (codigo 12)
+tambien permiten simulacion; actualizan estado sin generar historial.
+
+Con dispositivo conectado, el servidor resuelve el `id_comando`, guarda estado
+e historial juntos y envía la orden por WebSocket. Un fallo de
 MySQL impide el envío normal. Un fallo de envío posterior conserva el historial
 como registro de la solicitud y devuelve un error; no garantiza ejecución.
 
@@ -111,7 +119,7 @@ acciona la grúa. El campo `conectado` lo determina el servidor por la
 conexión del dispositivo, no el cuerpo de la petición.
 
 Se devuelve 404 para recursos inexistentes, 409 para conflictos (duplicados,
-referencias, grúa desconectada o demo activa), 422 para datos inválidos y 503
+referencias o demo activa), 422 para datos inválidos y 503
 para fallos de base o transporte. No se exponen contraseñas ni mensajes de
 conexión de MySQL. Las rutas DELETE conservan el comportamiento de los SP,
 incluidas sus eliminaciones en cascada.
@@ -164,6 +172,24 @@ También se puede iniciar por HTTP:
 {"codigo": 12, "id_demo": 1}
 ```
 
+En Swagger usa `POST /vehiculos/1/movimientos` con ese cuerpo. Si no hay un
+dispositivo conectado, responde 200 con `evento: "demo_iniciada"` y
+`modo: "simulacion"`; la secuencia continua en segundo plano. La respuesta
+confirma el inicio, no su finalizacion. Consulta `GET /vehiculos/1/estado`
+durante la ejecucion: cambia con cada paso y termina en codigo 9 (DETENER).
+No hace falta abrir un WebSocket para iniciar esta simulacion.
+
+Inicio, pasos y detenciones automaticas de demos usan `sp_actualizar_estado`,
+sin insertar historial, tanto en simulacion como con dispositivo. Los registros
+antiguos permanecen intactos. Un POST manual con codigo 9 cancela la demo y
+registra esa orden individual. Cancelar desde la interfaz WebSocket no genera
+historial. Los observadores de `/ws` reciben los cambios de estado.
+
+El modo se elige al iniciar y se mantiene durante toda la secuencia. No se
+admite conectar un dispositivo mientras corre una demo simulada. Con un
+dispositivo presente al iniciar, se transmiten los pasos por WebSocket y una
+desconexion cancela la demo; no se cambia silenciosamente a simulacion.
+
 Una demo debe tener **al menos dos movimientos** antes de ejecutarse, tanto
 por HTTP como por WebSocket. Puedes crearla vacía y agregar los pasos uno por
 uno en `POST /demos/{id}/movimientos`, usando el mismo `id_demo` y órdenes
@@ -190,7 +216,7 @@ cancelarla. Las demos iniciadas por HTTP no tienen interfaz propietaria.
 - `GET /status`: devuelve `{"status": codigo}` desde MySQL; puede ser
   `null` si aún no hay comando registrado.
 - `POST /status`: acepta `{"status": 7}`, registra y envía al dispositivo
-  del vehículo configurado. Requiere conexión y añade información de resultado
+  del vehículo configurado, o registra en simulacion si esta desconectado. Añade información de resultado
   a la respuesta. Para 12 usa la ruta nueva con `id_demo`.
 - `/ws`: envía el estado al conectar y cambios posteriores como
   `{"status": 7}`. Es solo observación. El ESP8266 debe migrar a
